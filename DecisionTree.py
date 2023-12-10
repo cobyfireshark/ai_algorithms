@@ -39,7 +39,7 @@ class DecisionTree:
     def evaluate_algorithm(self, dataset, algorithm, *args):
         logging.info("evaluate_algorithm()")
         folds = self.cross_validation_split(dataset)
-        logging.info(f"folds: {folds}")
+        logging.info(f"folds: {util.get_loggable_json(folds)}")
         scores = list()
         for fold in folds:
             train_set = list(folds)
@@ -51,8 +51,8 @@ class DecisionTree:
                 test_set.append(row_copy)
                 row_copy[-1] = None
 
-            logging.info(f"train_set: {train_set}")
-            logging.info(f"test_set: {test_set}")
+            logging.info(f"train_set: {util.get_loggable_json(train_set)}")
+            logging.info(f"test_set: {util.get_loggable_json(test_set)}")
             logging.info(f"Calling {algorithm} with args (train_set, test_set)")
             predicted = algorithm(train_set, test_set, *args)
             actual = [row[-1] for row in fold]
@@ -71,24 +71,38 @@ class DecisionTree:
         return left, right
 
     # Calculate the Gini index for a split dataset
-    def gini_index(self, groups, classes):
-        # count all samples at split point
-        n_instances = float(sum([len(group) for group in groups]))
-        # sum weighted Gini index for each group
-        gini = 0.0
-        for group in groups:
+    def gini_index(self, groups, classes, detailed_output=False):
+        
+        n_instances = float(sum([len(group) for group in groups])) # count all samples at split point
+        
+        dataset_gini = 0.0 # sum weighted Gini index for each group
+        class_scores = {}
+        group_ginis = {}
+
+        for group_id, group in enumerate(groups):
             size = float(len(group))
             # avoid divide by zero
             if size == 0:
                 continue
+
+            group_class_scores = {}
             score = 0.0
             # score the group based on the score for each class
             for class_val in classes:
-                p = [row[-1] for row in group].count(class_val) / size
-                score += p * p
-                # weight the group score by its relative size
-                gini += (1.0 - score) * (size / n_instances)
-        return gini
+                proportion = [row[-1] for row in group].count(class_val) / size
+                score += proportion * proportion
+                group_class_scores[class_val] = {'proportion': proportion, 'score': proportion * proportion}
+        
+            group_gini = 1.0 - score
+            
+            dataset_gini += group_gini * (size / n_instances)
+            group_ginis[f"group_{group_id}"] = group_gini
+            class_scores[f"group_{group_id}"] = group_class_scores
+        
+        if not detailed_output:
+            return dataset_gini
+        else:
+            return dataset_gini, group_ginis, class_scores
 
     # Select the best split point for a dataset
     def get_split(self, dataset):
@@ -138,7 +152,7 @@ class DecisionTree:
     def build_tree(self, train):
         logging.info("build_tree()")
         root = self.get_split(train)
-        logging.info(f"root: {root}")
+        logging.info(f"root: {util.get_loggable_json(root)}")
         self.split(root, 1)
         return root
 

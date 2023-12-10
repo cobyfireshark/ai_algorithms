@@ -18,14 +18,23 @@ def string_column_to_float(dataset, column):
     for row in dataset:
         row[column] = float(row[column].strip())
 
-def get_loggable_json(obj, max_length=100):
+def get_loggable_json(obj, max_string_length=100, max_list_length=5):
     if isinstance(obj, dict):
-        return {k: get_loggable_json(v, max_length) for k, v in obj.items()}
+        truncated_dict = {}
+        for k, v in obj.items():
+            if k == 'groups':  # Special handling for 'groups' within 'root'
+                truncated_dict[k] = [get_loggable_json(group, max_string_length, max_list_length) for group in v[:max_list_length]]
+            elif isinstance(v, list):
+                truncated_dict[k] = [get_loggable_json(item, max_string_length, max_list_length) for item in v[:max_list_length]]
+            elif isinstance(v, str):
+                truncated_dict[k] = v[:max_string_length] + '...' if len(v) > max_string_length else v
+            else:
+                truncated_dict[k] = v
+        return truncated_dict
     elif isinstance(obj, list):
-        limited_list = obj[:5]  # Limit the list to the first 5 items
-        return [get_loggable_json(item, max_length) for item in limited_list]
-    elif isinstance(obj, str) and len(obj) > max_length:
-        return obj[:max_length] + '...'  # Truncate long strings
+        return [get_loggable_json(item, max_string_length, max_list_length) for item in obj[:max_list_length]]
+    elif isinstance(obj, str):
+        return obj[:max_string_length] + '...' if len(obj) > max_string_length else obj
     return obj
 
 def initialize_logging(debug, log_path):
